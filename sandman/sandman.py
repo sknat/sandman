@@ -2,14 +2,34 @@
 
 from flask import (jsonify, request, g,
         current_app, Response, render_template,
-        make_response)
+        make_response, session)
 from sqlalchemy.exc import IntegrityError
-from . import app, db, auth
+from . import app, db #, auth
 from .decorators import etag
 from .exception import InvalidAPIUsage
 from .model.models import Model
 from .model.utils import _get_session
 
+###############################################################
+from functools import wraps
+from .werkzeug.authdigest import RealmDigestDB
+#import flask
+
+class FlaskRealmDigestDB(RealmDigestDB):
+    def requires_auth(self, f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            #request = flask.request
+            if not self.isAuthenticated(request):
+                return self.challenge()
+
+            return f(*args, **kwargs)
+
+        return decorated
+
+authDB = FlaskRealmDigestDB('MyAuthRealm')
+authDB.add_user('admin', 'test')
+###############################################################
 
 
 JSON, HTML = range(2)
@@ -559,6 +579,7 @@ def get_resource_attribute(collection, key, attribute):
 
 @app.route('/<collection>', methods=['GET'])
 @etag
+@authDB.requires_auth
 def get_collection(collection):
     """Return the appropriate *Response* for retrieving a collection of
     resources.
@@ -568,6 +589,7 @@ def get_collection(collection):
     :rtype: :class:`flask.Response`
 
     """
+    session['user'] = request.authorization.username
     cls = endpoint_class(collection)
 
     resources, resources_name = retrieve_collection(collection, request.args)

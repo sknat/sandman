@@ -4,7 +4,7 @@
 <h3>{{ tablename }}</h3>
 <h4>{{ resource.pk }}</h4>
     <ul>
-        {% for attribute, value in resource.attributes.items() %}
+        {% for attribute, value in resource.attributes.ite_ms() %}
             {% if attribute == 'links' %}
             <li>Links<ul>
                 {% for link in value %}

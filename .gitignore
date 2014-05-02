@@ -1,5 +1,7 @@
 sm*
 nbproject/
+server.*
+env/
 
 *.py[cod]
 *.py-e
