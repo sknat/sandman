@@ -8,6 +8,31 @@ from flask.ext.admin.contrib.sqla import ModelView
 
 from sandman import app, db
 
+class RestShadowUsers(db.Model):
+    def __init__(self, username, md5, depth):
+	self.username = username
+	self.md5 = md5
+	self.depth = depth
+
+    __tablename__ = 'rest_users'
+    __bind_key__ = 'RestShadowUserDB'
+
+    name = db.Column(db.String(80), primary_key=True)
+    md5 = db.Column(db.String(80))
+    depth = db.Column(db.Integer)
+
+class RestShadowRequests(db.Model):
+    def __init__(self, name, depth, ):
+	self.depth = depth
+	self.name = name
+	self.method = method
+
+    __bind_key__ = 'RestShadowUserDB'
+    __tablename__ = 'requests'
+    name = db.Column(db.String(80), primary_key=True)
+    depth = db.Column(db.Integer)
+    method = db.Column(db.String(80))
+
 class Model(object):
     """A mixin class containing the majority of the RESTful API functionality.
 

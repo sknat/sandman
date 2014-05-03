@@ -36,6 +36,11 @@ import os
 import weakref
 import hashlib
 import werkzeug
+from sandman.model.utils import _get_session
+from sandman.model.models import RestShadowUsers, RestShadowRequests
+import sandman
+#from sandman import _perform_database_action
+
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Realm Digest Credentials Database
@@ -54,8 +59,8 @@ class RealmDigestDB(object):
 
     def __init__(self, realm, algorithm='md5'):
         self.realm = realm
-        self.alg = self.newAlgorithm(algorithm)
-        self.db = self.newDB()
+        self.alg = self.newAlgorithm(algorithm)        
+	#self.db = self.newDB()
 
     @property
     def algorithm(self):
@@ -63,8 +68,8 @@ class RealmDigestDB(object):
 
     def toDict(self):
         r = {'cfg':{ 'algorithm': self.alg.algorithm,
-                'realm': self.realm},
-            'db': self.db, }
+                'realm': self.realm}}
+            #'db': self.db, }
         return r
     def toJson(self, **kw):
         import json
@@ -72,28 +77,36 @@ class RealmDigestDB(object):
         kw.setdefault('indent', 2)
         return json.dumps(self.toDict(), **kw)
 
-    def add_user(self, user, password):
+    def add_user(self, user, password, depth):
         r = self.alg.hashPassword(user, self.realm, password)
-        self.db[user] = r
-        return r
-    def del_user(self, user):
-        del self.db[user]
+	## TODO
+	return r
 
-    def __contains__(self, user):
-        return user in self.db
-    def get(self, user, default=None):
-        return self.db.get(user, default)
+    def get_depth(self, user):
+	ent = _get_session().query(RestShadowUsers).filter(RestShadowUsers.name==user).first()
+	if ent:
+		return ent.depth
+	else:
+		return None
+
+    def get_request_depth(self, collection, method):
+	ent = _get_session().query(RestShadowRequests).filter(RestShadowRequests.name==collection, RestShadowRequests.method==method).first()
+	if ent:
+		return ent.depth
+	else:
+		return 0
+
+
     def __getitem__(self, user):
-        return self.db.get(user)
-    def __setitem__(self, user, password):
-        return self.add_user(user, password)
-    def __delitem__(self, user):
-        return self.db.pop(user, None)
+	ent = _get_session().query(RestShadowUsers).filter(RestShadowUsers.name==user).first()
+	if ent:
+		return ent.md5
+	else:
+		return None
+
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def newDB(self):
-        return dict()
     def newAlgorithm(self, algorithm):
         return DigestAuthentication(algorithm)
 

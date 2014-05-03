@@ -4,7 +4,7 @@ from flask import (jsonify, request, g,
         current_app, Response, render_template,
         make_response, session)
 from sqlalchemy.exc import IntegrityError
-from . import app, db #, auth
+from . import app, db
 from .decorators import etag
 from .exception import InvalidAPIUsage
 from .model.models import Model
@@ -13,13 +13,11 @@ from .model.utils import _get_session
 ###############################################################
 from functools import wraps
 from .werkzeug.authdigest import RealmDigestDB
-#import flask
 
 class FlaskRealmDigestDB(RealmDigestDB):
     def requires_auth(self, f):
         @wraps(f)
         def decorated(*args, **kwargs):
-            #request = flask.request
             if not self.isAuthenticated(request):
                 return self.challenge()
 
@@ -27,8 +25,28 @@ class FlaskRealmDigestDB(RealmDigestDB):
 
         return decorated
 
-authDB = FlaskRealmDigestDB('MyAuthRealm')
-authDB.add_user('admin', 'test')
+def verify_depth(collection, method):
+    def decorator(f):
+    	@wraps(f)
+    	def decorated(*args, **kwargs):
+	    if session['depth'] > authDB.get_request_depth(collection, method):
+	         raise InvalidAPIUsage(403, "Forbidden: You have'nt the right to access this request")
+            return f(*args, **kwargs)
+            
+        return decorated
+    return decorator
+
+
+authDB = FlaskRealmDigestDB('GTFS-REST-API')
+print authDB.add_user('admin', 'test', 0)
+print authDB.add_user('user1', 'test', 1)
+print authDB.add_user('user2', 'test', 1)
+print authDB.add_user('user3', 'test', 1)
+print authDB.add_user('user4', 'test', 1)
+print authDB.add_user('basic1', 'test', 2)
+print authDB.add_user('basic2', 'test', 2)
+print authDB.add_user('basic3', 'test', 2)
+
 ###############################################################
 
 
@@ -81,6 +99,13 @@ def _get_acceptable_response_type():
     else:
         # HTTP 406 Not Acceptable
         raise InvalidAPIUsage(406)
+
+@app.before_request
+@authDB.requires_auth
+def before_request():
+    session['user'] = request.authorization.username
+    session['depth'] = authDB.get_depth(session['user'])
+
 
 @app.after_request
 def after_request(response):
@@ -418,7 +443,6 @@ def attribute_response(resource, name, value):
     else:
         return _single_attribute_html_response(resource, name, value)
 
-
 def no_content_response():
     """Return the appropriate *Response* with status code *204*, signaling a
     completed action which does not require data in the response body
@@ -444,6 +468,7 @@ def update_resource(resource, incoming_request):
 
 
 @app.route('/<collection>/<key>', methods=['PATCH'])
+@verify_depth('<collection>', 'PATCH')
 def patch_resource(collection, key):
     """"Upsert" a resource identified by the given key and return the
     appropriate *Response*.
@@ -462,6 +487,7 @@ def patch_resource(collection, key):
     :rtype: :class:`flask.Response`
 
     """
+    
     cls = endpoint_class(collection)
 
     try:
@@ -481,6 +507,7 @@ def patch_resource(collection, key):
         return update_resource(resource, request)
 
 @app.route('/<collection>/<key>', methods=['PUT'])
+@verify_depth('<collection>', 'PUT')
 def put_resource(collection, key):
     """Replace the resource identified by the given key and return the
     appropriate response.
@@ -502,6 +529,7 @@ def put_resource(collection, key):
     return no_content_response()
 
 @app.route('/<collection>', methods=['POST'])
+@verify_depth('<collection>', 'POST')
 def post_resource(collection):
     """Return the appropriate *Response* based on adding a new resource to
     *collection*.
@@ -520,6 +548,7 @@ def post_resource(collection):
     return resource_created_response(resource)
 
 @app.route('/<collection>/<key>', methods=['DELETE'])
+@verify_depth('<collection>', 'DELETE')
 def delete_resource(collection, key):
     """Return the appropriate *Response* for deleting an existing resource in
     *collection*.
@@ -543,6 +572,7 @@ def delete_resource(collection, key):
     return no_content_response()
 
 @app.route('/<collection>/<key>', methods=['GET'])
+@verify_depth('<collection>', 'GET')
 @etag
 def get_resource(collection, key):
     """Return the appropriate *Response* for retrieving a single resource.
@@ -558,6 +588,7 @@ def get_resource(collection, key):
     return resource_response(resource)
 
 @app.route('/<collection>/<key>/<attribute>', methods=['GET'])
+@verify_depth('<collection>', 'GET')
 @etag
 def get_resource_attribute(collection, key, attribute):
     """Return the appropriate *Response* for retrieving an attribute of
@@ -578,8 +609,8 @@ def get_resource_attribute(collection, key, attribute):
 
 
 @app.route('/<collection>', methods=['GET'])
+@verify_depth('<collection>', 'GET')
 @etag
-@authDB.requires_auth
 def get_collection(collection):
     """Return the appropriate *Response* for retrieving a collection of
     resources.
@@ -589,7 +620,6 @@ def get_collection(collection):
     :rtype: :class:`flask.Response`
 
     """
-    session['user'] = request.authorization.username
     cls = endpoint_class(collection)
 
     resources, resources_name = retrieve_collection(collection, request.args)
@@ -603,6 +633,7 @@ def get_collection(collection):
     return collection_response(resources, resources_name, start, stop)
 
 @app.route('/', methods=['GET'])
+@verify_depth('<collection>', 'GET')
 @etag
 def index():
     """Return information about each type of resource and how it can be
@@ -622,6 +653,7 @@ def index():
         return render_template('index.html', classes=classes)
 
 @app.route('/<collection>/meta', methods=['GET'])
+@verify_depth('<collection>', 'GET')
 @etag
 def get_meta(collection):
     cls = endpoint_class(collection)

@@ -64,8 +64,8 @@ def add_pk_if_required(db, table, name):
 		column.primary_key = True
 		updated = False
         Table(name, db.metadata, *table.columns, extend_existing=True)
-        cls_dict['__table__'] = table
-        db.metadata.create_all(bind=db.engine)
+        cls_dict['__table__'] = table   
+	db.metadata.create_all(bind=db.engine)
 
     return type(str(name), (sandman_model, db.Model), cls_dict)
 
@@ -165,6 +165,9 @@ def activate(admin=True, browser=True, name='admin', reflect_all=False):
                  to use sandman to connect to multiple databases simultaneously)
 
     """
+
+    #db.create_all(bind = 'users')
+
     with app.app_context():
         generate_pks = app.config.get('SANDMAN_GENERATE_PKS', None) or False
         if getattr(app, 'class_references', None) is None or reflect_all:
