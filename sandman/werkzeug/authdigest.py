@@ -90,10 +90,14 @@ class RealmDigestDB(object):
 		return None
 
     def get_request_depth(self, collection, method):
-	ent = _get_session().query(RestShadowRequests).filter(RestShadowRequests.name==collection, RestShadowRequests.method==method).first()
+	ent = _get_session().query(RestShadowRequests).filter(RestShadowRequests.request==collection, RestShadowRequests.method==method).first()
+	print collection
+	print method
 	if ent:
+		print ent.depth		
 		return ent.depth
 	else:
+		print 0		
 		return 0
 
 

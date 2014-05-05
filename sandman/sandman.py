@@ -25,16 +25,18 @@ class FlaskRealmDigestDB(RealmDigestDB):
 
         return decorated
 
-def verify_depth(collection, method):
-    def decorator(f):
-    	@wraps(f)
-    	def decorated(*args, **kwargs):
-	    if session['depth'] > authDB.get_request_depth(collection, method):
-	         raise InvalidAPIUsage(403, "Forbidden: You have'nt the right to access this request")
-            return f(*args, **kwargs)
+def verify_depth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+	if 'collection' in kwargs:
+	    if session['depth'] > authDB.get_request_depth(kwargs['collection'], request.method):
+	       	raise InvalidAPIUsage(403, "Forbidden: You have'nt the right to access this request")
+        else:
+	    if session['depth'] > authDB.get_request_depth('/', request.method):
+	       	raise InvalidAPIUsage(403, "Forbidden: You have'nt the right to access this request")
+	return f(*args, **kwargs)
             
-        return decorated
-    return decorator
+    return decorated
 
 
 authDB = FlaskRealmDigestDB('GTFS-REST-API')
@@ -62,20 +64,6 @@ FORBIDDEN_EXCEPTION_MESSAGE = """Method [{}] not acceptable for resource \
 type [{}].  Acceptable methods: [{}]"""
 UNSUPPORTED_CONTENT_TYPE_MESSAGE = 'Content-type [{types}] not supported.'
 #UNSUPPORTED_CONTENT_TYPE_MESSAGE += """\nSupported values for 'Content-type': {}""".format(ACCEPTABLE_CONTENT_TYPES)
-
-#Simple authentification
-#https://sandman.readthedocs.org/en/latest/authentication.html
-'''
-@auth.get_password
-def get_password(username):
-    """Return the password for *username*."""
-    return 'secret'
-
-@app.before_request
-@auth.login_required
-def before_request():
-	pass
-'''
 
 def _perform_database_action(action, *args):
     """Call session.*action* with the given *args*.
@@ -468,7 +456,7 @@ def update_resource(resource, incoming_request):
 
 
 @app.route('/<collection>/<key>', methods=['PATCH'])
-@verify_depth('<collection>', 'PATCH')
+@verify_depth
 def patch_resource(collection, key):
     """"Upsert" a resource identified by the given key and return the
     appropriate *Response*.
@@ -507,7 +495,7 @@ def patch_resource(collection, key):
         return update_resource(resource, request)
 
 @app.route('/<collection>/<key>', methods=['PUT'])
-@verify_depth('<collection>', 'PUT')
+@verify_depth
 def put_resource(collection, key):
     """Replace the resource identified by the given key and return the
     appropriate response.
@@ -529,7 +517,7 @@ def put_resource(collection, key):
     return no_content_response()
 
 @app.route('/<collection>', methods=['POST'])
-@verify_depth('<collection>', 'POST')
+@verify_depth
 def post_resource(collection):
     """Return the appropriate *Response* based on adding a new resource to
     *collection*.
@@ -548,7 +536,7 @@ def post_resource(collection):
     return resource_created_response(resource)
 
 @app.route('/<collection>/<key>', methods=['DELETE'])
-@verify_depth('<collection>', 'DELETE')
+@verify_depth
 def delete_resource(collection, key):
     """Return the appropriate *Response* for deleting an existing resource in
     *collection*.
@@ -572,7 +560,7 @@ def delete_resource(collection, key):
     return no_content_response()
 
 @app.route('/<collection>/<key>', methods=['GET'])
-@verify_depth('<collection>', 'GET')
+@verify_depth
 @etag
 def get_resource(collection, key):
     """Return the appropriate *Response* for retrieving a single resource.
@@ -588,7 +576,7 @@ def get_resource(collection, key):
     return resource_response(resource)
 
 @app.route('/<collection>/<key>/<attribute>', methods=['GET'])
-@verify_depth('<collection>', 'GET')
+@verify_depth
 @etag
 def get_resource_attribute(collection, key, attribute):
     """Return the appropriate *Response* for retrieving an attribute of
@@ -609,7 +597,7 @@ def get_resource_attribute(collection, key, attribute):
 
 
 @app.route('/<collection>', methods=['GET'])
-@verify_depth('<collection>', 'GET')
+@verify_depth
 @etag
 def get_collection(collection):
     """Return the appropriate *Response* for retrieving a collection of
@@ -632,8 +620,8 @@ def get_collection(collection):
         start, stop = page * results_per_page, (page +1) * results_per_page
     return collection_response(resources, resources_name, start, stop)
 
-@app.route('/', methods=['GET'])
-@verify_depth('<collection>', 'GET')
+@app.route('/meta', methods=['GET'])
+@verify_depth
 @etag
 def index():
     """Return information about each type of resource and how it can be
@@ -653,9 +641,14 @@ def index():
         return render_template('index.html', classes=classes)
 
 @app.route('/<collection>/meta', methods=['GET'])
-@verify_depth('<collection>', 'GET')
+@verify_depth
 @etag
 def get_meta(collection):
     cls = endpoint_class(collection)
     description = cls.meta()
     return jsonify(description)
+
+@app.route('/', methods=['GET'])
+@etag
+def auth():
+    return render_template('auth.html')

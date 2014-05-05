@@ -22,14 +22,14 @@ class RestShadowUsers(db.Model):
     depth = db.Column(db.Integer)
 
 class RestShadowRequests(db.Model):
-    def __init__(self, name, depth, ):
+    def __init__(self, request, depth, ):
 	self.depth = depth
-	self.name = name
+	self.request = request
 	self.method = method
 
     __bind_key__ = 'RestShadowUserDB'
     __tablename__ = 'requests'
-    name = db.Column(db.String(80), primary_key=True)
+    request = db.Column(db.String(80), primary_key=True)
     depth = db.Column(db.Integer)
     method = db.Column(db.String(80))
 
@@ -184,8 +184,6 @@ class Model(object):
 
     @classmethod
     def meta(cls):
-        if __from_class__:
-            cls = self.__from_class__
         attribute_info = {}
         for name, value in cls.__table__.columns.items():
             attribute_info[name] = str(value.type).lower()
